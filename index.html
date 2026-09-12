@@ -116,9 +116,9 @@ header{padding:20px 0 8px}
 .cell.out{opacity:.32;pointer-events:none}
 .cell:not(.void):active{transform:scale(.97)}
 .cell:not(.void):hover{border-color:var(--line2);background:var(--panel2)}
-.cell .top{display:flex;align-items:center;justify-content:space-between;gap:4px}
-.cell .g{font-family:"Rubik",system-ui,sans-serif;font-weight:700;font-size:19px;line-height:.9;color:var(--ink)}
-.cell .heb{font-size:12px;color:var(--gold);font-weight:600;font-family:"Rubik",system-ui,sans-serif;line-height:1;opacity:.85}
+.cell .top{display:flex;flex-direction:column;align-items:flex-start;gap:0}
+.cell .g{font-family:"Rubik",system-ui,sans-serif;font-weight:700;font-size:19px;line-height:1;color:var(--ink)}
+.cell .heb{font-size:11px;color:var(--gold);font-weight:600;font-family:"Rubik",system-ui,sans-serif;line-height:1.1;opacity:.85;margin-top:1px}
 .cell .todaydot2{font-size:9px;font-weight:800;color:var(--bg);background:var(--gold);padding:1px 6px;border-radius:5px;letter-spacing:.4px}
 .cell .cbot{margin-top:auto;display:flex;flex-direction:column;gap:6px;padding-top:5px}
 .cell .ev{font-size:9.5px;font-weight:800;line-height:1.08;padding:2px 5px;border-radius:6px;align-self:stretch;text-align:center;
@@ -210,7 +210,8 @@ header{padding:20px 0 8px}
 /* nav header (day stepper) */
 .mnav{display:flex;align-items:center;justify-content:center;gap:12px;margin:4px 0 6px;padding:0 4px}
 .mnav-btn{flex:0 0 auto;width:44px;height:44px;border-radius:13px;background:var(--panel2);border:1px solid var(--line2);
-  color:var(--ink);font-size:24px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;padding-bottom:2px}
+  color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.mnav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 .mnav-btn:active{transform:scale(.93)} .mnav-btn:disabled{opacity:.22;cursor:default}
 .mnav-mid{text-align:center;min-width:0;padding:0 4px}
 .mnav-kick{font-size:12.5px;color:var(--gold);font-weight:700;letter-spacing:.2px}
@@ -678,13 +679,13 @@ function openDay(dISO){
   const evc=evClass(rec.event);
   const chip=(name)=>{const t=teamOf(name);return`<span class="pchip ${CAT[catOf(rec.people[name])].cls}">${avatar(name,24)}${name}<span class="tt">${t===1?'עיט':'ראם'}</span></span>`;};
   let h=`<div class="mnav">
-      <button class="mnav-btn" onclick="stepDay(-1)" ${i<=0?'disabled':''}>›</button>
+      <button class="mnav-btn" onclick="stepDay(-1)" aria-label="יום קודם" ${i<=0?'disabled':''}><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
       <div class="mnav-mid">
         <div class="mnav-kick">${dISO===isoToday?'היום · ':''}${DOWL[d.getDay()]}</div>
         <div class="mnav-greg tnum">${d.getDate()} ${MONL[d.getMonth()]} ${d.getFullYear()}</div>
         <div class="mnav-heb">${hebFull(d)}</div>
       </div>
-      <button class="mnav-btn" onclick="stepDay(1)" ${i>=DATA.records.length-1?'disabled':''}>‹</button>
+      <button class="mnav-btn" onclick="stepDay(1)" aria-label="יום הבא" ${i>=DATA.records.length-1?'disabled':''}><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
     </div>
     ${rec.event?`<div style="text-align:center"><span class="mnav-ev ${evc}">${expandEv(rec.event)}</span></div>`:''}
   <div class="msum">
@@ -752,13 +753,13 @@ function drawReport(){
   const evc=evClass(rec.event);
   const i=DATA.records.findIndex(r=>r.date===reportDate);
   const nav=`<div class="mnav">
-     <button class="mnav-btn" onclick="stepReport(-1)" ${i<=0?'disabled':''}>›</button>
+     <button class="mnav-btn" onclick="stepReport(-1)" aria-label="יום קודם" ${i<=0?'disabled':''}><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
      <div class="mnav-mid">
        <div class="mnav-kick">דו״ח 1 · ${DOWL[d.getDay()]}</div>
        <div class="mnav-greg tnum">${d.getDate()} ${MONL[d.getMonth()]} ${d.getFullYear()}</div>
        <div class="mnav-heb">${hebFull(d)}</div>
      </div>
-     <button class="mnav-btn" onclick="stepReport(1)" ${i>=DATA.records.length-1?'disabled':''}>‹</button>
+     <button class="mnav-btn" onclick="stepReport(1)" aria-label="יום הבא" ${i>=DATA.records.length-1?'disabled':''}><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
    </div>`;
   const teamTag=n=>teamOf(n)===1?'עיט':'ראם';
   const pcard=`<div class="sharecard" id="shareCard" dir="rtl">

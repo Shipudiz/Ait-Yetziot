@@ -457,7 +457,10 @@ function teamOf(name){return DATA.team1.includes(name)?1:2;}
 function counts(name){
   const c={base:0,returning:0,leaving:0,home:0,na:0,total:0};
   DATA.records.forEach(r=>{c[catOf(r.people[name])]++;c.total++;});
-  c.army=c.base+c.returning+c.leaving;c.tracked=c.army+c.home;return c;
+  c.army=c.base+c.returning;               // בצבא (ספירת ראש יומית) — לא כולל "יוצא"
+  c.away=c.home+c.leaving;                  // בבית — כולל "יוצא" (בדרך הביתה)
+  c.armyAny=c.base+c.returning+c.leaving;   // מעורבות צבא כלשהי (לדו״ח ולזיהוי "לא בסבב")
+  c.tracked=c.army+c.away;return c;
 }
 function recByIso(d){return DATA.records.find(r=>r.date===d);}
 /* per-day grouping over current roster (na = ללא נתונים, לא מוצג/נספר) */
@@ -544,7 +547,7 @@ function resolveRaam(d){
   d._raamResolved=true;
 }
 function recompute(){
-  INACTIVE=DATA.team1.concat(DATA.team2).filter(n=>counts(n).army===0);
+  INACTIVE=DATA.team1.concat(DATA.team2).filter(n=>counts(n).armyAny===0);
   todayIdx=DATA.records.findIndex(r=>r.date===isoToday);
 }
 function setLive(state,txt){
@@ -580,7 +583,7 @@ function renderAll(){renderToday();renderInactiveBtn();renderFoot();
 function renderToday(){
   const el=document.getElementById('todayCard');
   const idx=todayIdx>=0?todayIdx:0;const rec=DATA.records[idx];const d=parse(rec.date);
-  const g=dayGroups(rec);const army=g.base.length+g.returning.length+g.leaving.length;
+  const g=dayGroups(rec);const army=g.base.length+g.returning.length,away=g.home.length+g.leaving.length;
   const evtxt=expandEv(rec.event);
   const ev=evtxt?`<div class="tc-ev">${evtxt}</div>`:'';
   const note=todayIdx<0?'<div class="tc-ev" style="color:var(--muted2)">היום מחוץ לטווח הסבב</div>':'';
@@ -593,7 +596,7 @@ function renderToday(){
       <div class="tc-lbl">${todayIdx>=0?'היום':'קרוב'}</div>
       <div class="tc-heb serif">${hebShort(d)}</div>
       ${ev||note}
-      <div class="tc-counts"><span class="a">${army}<small> בצבא</small></span><span class="h">${g.home.length}<small> בבית</small></span></div>
+      <div class="tc-counts"><span class="a">${army}<small> בצבא</small></span><span class="h">${away}<small> בבית</small></span></div>
     </div>`;
   el.onclick=()=>openDay(rec.date);
 }
@@ -630,7 +633,7 @@ function renderCal(){
       const date=new Date(y,mo,dd),is=iso(date),hit=byIso[is],hd=gematria(hebParts(date).day);
       if(!hit){html+=`<div class="cell out"><div class="top"><span class="g serif tnum">${dd}</span><span class="heb">${hd}</span></div></div>`;continue;}
       const rec=hit.r,g=dayGroups(rec);
-      const army=g.base.length+g.returning.length+g.leaving.length,home=g.home.length,tot=army+home;
+      const army=g.base.length+g.returning.length,home=g.home.length+g.leaving.length,tot=army+home;
       const evc=evClass(rec.event);
       const isToday=is===isoToday;
       const aw=tot?Math.round(army/tot*100):0;
@@ -690,15 +693,15 @@ function renderPeople(){
     const mem=list.filter(p=>p.team===tid);if(!mem.length)return;
     html+=`<div class="pv-group">${tn} · ${mem.length}</div>`;
     mem.forEach(p=>{
-      const c=counts(p.name),tot=c.total||1;
+      const c=counts(p.name),tot=c.tracked||1;
       const rec=DATA.records[todayIdx>=0?todayIdx:0];const cat=catOf(rec.people[p.name]);
       const nowCol=CAT[cat].col,nowLbl=CAT[cat].label;
       html+=`<div class="prow" data-name="${p.name}">
         ${avatar(p.name,42)}
         <div class="pmid">
           <div style="display:flex;align-items:center;gap:8px"><span class="pname serif">${p.name}</span></div>
-          <div class="bar"><span class="bb" style="width:${c.army/tot*100}%"></span><span class="bh" style="width:${c.home/tot*100}%"></span></div>
-          <div class="pst"><span class="sb">${c.army}</span> בצבא · <span class="sh">${c.home}</span> בבית</div>
+          <div class="bar"><span class="bb" style="width:${c.army/tot*100}%"></span><span class="bh" style="width:${c.away/tot*100}%"></span></div>
+          <div class="pst"><span class="sb">${c.army}</span> בצבא · <span class="sh">${c.away}</span> בבית</div>
         </div>
         <span class="now" style="color:${nowCol};background:${nowCol}22">${nowLbl}</span>
         <span class="chev">‹</span>
@@ -724,7 +727,7 @@ let dayDate=null;
 function openDay(dISO){
   const rec=recByIso(dISO);if(!rec)return;dayDate=dISO;const d=parse(dISO);
   const i=DATA.records.findIndex(r=>r.date===dISO);
-  const g=dayGroups(rec);const army=g.base.length+g.returning.length+g.leaving.length;
+  const g=dayGroups(rec);const army=g.base.length+g.returning.length,away=g.home.length+g.leaving.length;
   const evc=evClass(rec.event);
   const chip=(name)=>{const t=teamOf(name);return`<span class="pchip ${CAT[catOf(rec.people[name])].cls}">${avatar(name,24)}${name}<span class="tt">${t===1?'עיט':'ראם'}</span></span>`;};
   let h=`<div class="mnav">
@@ -739,7 +742,7 @@ function openDay(dISO){
     ${rec.event?`<div style="text-align:center"><span class="mnav-ev ${evc}">${expandEv(rec.event)}</span></div>`:''}
   <div class="msum">
     <div class="box a"><div class="n serif tnum">${army}</div><div class="l">בצבא</div></div>
-    <div class="box h"><div class="n serif tnum">${g.home.length}</div><div class="l">בבית</div></div>
+    <div class="box h"><div class="n serif tnum">${away}</div><div class="l">בבית</div></div>
   </div>`;
   // army first: base, returning, leaving
   const sec=(arr,key)=>{if(!arr.length)return'';return`<div class="mgrouplbl"><i style="background:${CAT[key].col}"></i>${CAT[key].label} · ${arr.length}</div><div class="mppl">${arr.map(chip).join('')}</div>`;};
@@ -776,7 +779,7 @@ function openPerson(name){
     </div>
     <div class="mbig">
       <div class="box a"><div class="n serif tnum">${c.army}</div><div class="l">ימים בצבא</div></div>
-      <div class="box h"><div class="n serif tnum">${c.home}</div><div class="l">ימים בבית</div></div>
+      <div class="box h"><div class="n serif tnum">${c.away}</div><div class="l">ימים בבית</div></div>
     </div>
     <div class="legend" style="margin:4px 2px 2px">
       <span><i style="background:var(--army)"></i>בבסיס ${c.base}</span>

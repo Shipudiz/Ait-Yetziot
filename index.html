@@ -308,6 +308,34 @@ header{padding:20px 0 8px}
 @keyframes sp{to{transform:rotate(360deg)}}
 ::-webkit-scrollbar{height:8px;width:8px}
 ::-webkit-scrollbar-thumb{background:var(--line2);border-radius:8px}
+
+/* ============ EDIT MODE + STATUS PICKER ============ */
+.rb.on{background:linear-gradient(180deg,#3a3016,#2a2312);border-color:var(--gold-d);color:var(--gold)}
+.edit-hint{font-size:12.5px;color:var(--gold);background:rgba(235,194,106,.1);border:1px solid rgba(235,194,106,.25);
+  border-radius:11px;padding:9px 12px;margin:2px 0 14px;line-height:1.4;text-align:center}
+.pchip.editable,.sc-p.editable{cursor:pointer;box-shadow:inset 0 0 0 1px var(--gold-d)}
+.pchip.editable:active,.sc-p.editable:active{transform:scale(.96)}
+.pchip.edited,.sc-p.edited{position:relative}
+.pchip.edited::after,.sc-p.edited::after{content:"✎";position:absolute;top:-6px;inset-inline-start:-4px;font-size:10px;
+  background:var(--gold);color:var(--bg);width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800}
+.pmini .pd.edited{box-shadow:0 0 0 2px var(--gold)}
+.cell .ovdot{position:absolute;bottom:5px;inset-inline-start:6px;width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 2px var(--panel)}
+.pick-bg{position:fixed;inset:0;background:rgba(6,6,4,.66);backdrop-filter:blur(4px);z-index:70;display:flex;align-items:flex-end;justify-content:center}
+@media(min-width:600px){.pick-bg{align-items:center}}
+.pick{background:var(--panel);border:1px solid var(--line2);border-radius:20px 20px 0 0;width:100%;max-width:440px;
+  padding:18px 16px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -12px 40px rgba(0,0,0,.5);animation:up .2s ease}
+@media(min-width:600px){.pick{border-radius:20px}}
+.pick-h{font-family:"Rubik",sans-serif;font-weight:800;font-size:18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:baseline}
+.pick-h span{font-size:14px;color:var(--muted);font-weight:600}
+.pick-opts{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.pick-o{display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+  font-family:"Rubik",sans-serif;font-weight:700;font-size:14.5px;padding:14px 12px;border-radius:13px;cursor:pointer}
+.pick-o i{width:13px;height:13px;border-radius:4px;flex:0 0 auto}
+.pick-o.on{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+.pick-o:active{transform:scale(.97)}
+.pick-reset{width:100%;margin-top:10px;background:transparent;border:1px dashed var(--line2);color:var(--muted);
+  font-weight:600;font-size:13.5px;padding:12px;border-radius:13px;cursor:pointer}
+.pick-cancel{width:100%;margin-top:9px;background:var(--panel3);border:0;color:var(--ink);font-weight:700;font-size:14.5px;padding:13px;border-radius:13px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -400,6 +428,48 @@ const RAW={'שטח':'base','יוצא':'leaving','מגיע':'returning',
 const CATKEYS=new Set(['base','returning','leaving','home','na']); // resolved-category tokens (ראם)
 function catOf(v){v=(v||'').trim();if(CATKEYS.has(v))return v;return RAW[v]!==undefined?RAW[v]:'home';}
 const ARMY=new Set(['base','leaving','returning']); // "נמצא" = בצבא (na לא נספר)
+
+/* ============ עריכה משותפת — שכבת שינויים ידניים מעל האקסל (Firebase RTDB) ============ */
+const DB_URL="https://ait-reem-yetziot-default-rtdb.europe-west1.firebasedatabase.app";
+let OVERRIDES={};        // { `${date}~${name}`: {cat, at} }
+let editMode=false;
+let modalRefresh=null;   // מרענן את המודל הפתוח אחרי שינוי
+function ovKey(date,name){return date+'~'+name;}
+function catFor(rec,name){const o=OVERRIDES[ovKey(rec.date,name)];return (o&&o.cat)?o.cat:catOf(rec.people[name]);}
+function isEdited(date,name){return !!OVERRIDES[ovKey(date,name)];}
+function dayHasEdits(date){for(const k in OVERRIDES){if(k.slice(0,date.length+1)===date+'~')return true;}return false;}
+async function fetchOverrides(){
+  try{const r=await fetch(DB_URL+'/overrides.json',{cache:'no-store'});if(!r.ok)return false;
+    const j=await r.json()||{};
+    if(JSON.stringify(j)!==JSON.stringify(OVERRIDES)){OVERRIDES=j;return true;}return false;
+  }catch(e){console.warn('overrides fetch',e);return false;}
+}
+async function writeOverride(date,name,cat){
+  const key=ovKey(date,name);
+  if(cat)OVERRIDES[key]={cat,at:Date.now()};else delete OVERRIDES[key];
+  recompute();renderAll();if(modalRefresh)modalRefresh();
+  try{
+    const r=await fetch(DB_URL+'/overrides/'+encodeURIComponent(key)+'.json',
+      {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cat?{cat,at:Date.now()}:null)});
+    if(!r.ok)throw new Error(r.status);
+  }catch(e){console.warn('override write failed',e);alert('השמירה לא עברה — בדוק חיבור לאינטרנט ונסה שוב.');}
+}
+function openStatusPicker(date,name){
+  const rec=recByIso(date);if(!rec)return;const cur=catFor(rec,name);
+  const opts=[['base','בצבא'],['returning','חוזר לבסיס'],['leaving','יוצא הביתה'],['home','בבית']];
+  const bg=document.createElement('div');bg.className='pick-bg';
+  bg.innerHTML=`<div class="pick">
+    <div class="pick-h">${name}<span>${parse(date).getDate()}.${parse(date).getMonth()+1}</span></div>
+    <div class="pick-opts">${opts.map(([k,l])=>`<button class="pick-o ${cur===k?'on':''}" data-k="${k}"><i style="background:${CAT[k].col}"></i>${l}${cur===k?' ✓':''}</button>`).join('')}</div>
+    ${isEdited(date,name)?`<button class="pick-reset" data-k="">↺ בטל עריכה · חזרה לגיליון</button>`:''}
+    <button class="pick-cancel">סגירה</button>
+  </div>`;
+  document.body.appendChild(bg);
+  const close=()=>bg.remove();
+  bg.onclick=e=>{if(e.target===bg)close();};
+  bg.querySelectorAll('.pick-o,.pick-reset').forEach(b=>b.onclick=()=>{close();writeOverride(date,name,b.dataset.k||null);});
+  bg.querySelector('.pick-cancel').onclick=close;
+}
 function isArmy(v){return ARMY.has(catOf(v));}
 
 /* ---------- hebrew date (Intl + gematria) ---------- */
@@ -456,7 +526,7 @@ function roster(){
 function teamOf(name){return DATA.team1.includes(name)?1:2;}
 function counts(name){
   const c={base:0,returning:0,leaving:0,home:0,na:0,total:0};
-  DATA.records.forEach(r=>{c[catOf(r.people[name])]++;c.total++;});
+  DATA.records.forEach(r=>{c[catFor(r,name)]++;c.total++;});
   c.army=c.base+c.returning;               // בצבא (ספירת ראש יומית) — לא כולל "יוצא"
   c.away=c.home+c.leaving;                  // בבית — כולל "יוצא" (בדרך הביתה)
   c.armyAny=c.base+c.returning+c.leaving;   // מעורבות צבא כלשהי (לדו״ח ולזיהוי "לא בסבב")
@@ -466,7 +536,7 @@ function recByIso(d){return DATA.records.find(r=>r.date===d);}
 /* per-day grouping over current roster (na = ללא נתונים, לא מוצג/נספר) */
 function dayGroups(rec){
   const g={base:[],returning:[],leaving:[],home:[],na:[]};
-  roster().forEach(p=>{g[catOf(rec.people[p.name])].push(p.name);});
+  roster().forEach(p=>{g[catFor(rec,p.name)].push(p.name);});
   return g;
 }
 
@@ -639,6 +709,7 @@ function renderCal(){
       const aw=tot?Math.round(army/tot*100):0;
       let cls='cell';if(date.getDay()===6)cls+=' sat';if(isToday)cls+=' today';
       html+=`<div class="${cls}" data-day="${is}" tabindex="0" role="button" aria-label="${dd} ${MONL[mo]}">
+        ${dayHasEdits(is)?'<span class="ovdot" title="יש עריכה ידנית"></span>':''}
         <div class="top"><span class="g serif tnum">${dd}</span><span class="heb">${hd}</span></div>
         <div class="cbot">
           ${rec.event?`<div class="ev ${evc}">${evShort(rec.event)}</div>`:''}
@@ -670,7 +741,7 @@ function renderBoard(){
     gh+=`<div class="hm-sep" style="width:${recs.length*28}px"></div>`;
     members.forEach(p=>{
       nh+=`<div class="n-name" data-name="${p.name}">${avatar(p.name,22)}<span class="nm">${p.name}</span></div>`;
-      gh+='<div class="hm-row">'+recs.map(r=>{const c=catOf(r.people[p.name]);
+      gh+='<div class="hm-row">'+recs.map(r=>{const c=catFor(r,p.name);
         return`<div class="c c-${c} ${r.date===isoToday?'today':''}" data-day="${r.date}" title="${p.name}"></div>`;}).join('')+'</div>';
     });
   }
@@ -694,7 +765,7 @@ function renderPeople(){
     html+=`<div class="pv-group">${tn} · ${mem.length}</div>`;
     mem.forEach(p=>{
       const c=counts(p.name),tot=c.tracked||1;
-      const rec=DATA.records[todayIdx>=0?todayIdx:0];const cat=catOf(rec.people[p.name]);
+      const rec=DATA.records[todayIdx>=0?todayIdx:0];const cat=catFor(rec,p.name);
       const nowCol=CAT[cat].col,nowLbl=CAT[cat].label;
       html+=`<div class="prow" data-name="${p.name}">
         ${avatar(p.name,42)}
@@ -718,7 +789,7 @@ function renderPeople(){
    ============================================================ */
 const modalBg=document.getElementById('modalBg'),modalEl=document.getElementById('modal');
 function openModal(html){modalEl.innerHTML='<button class="close" onclick="closeModal()">✕</button>'+html;modalBg.classList.add('on');modalEl.scrollTop=0;}
-function closeModal(){modalBg.classList.remove('on');}
+function closeModal(){modalBg.classList.remove('on');modalRefresh=null;}
 modalBg.onclick=e=>{if(e.target===modalBg)closeModal();};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
@@ -729,7 +800,7 @@ function openDay(dISO){
   const i=DATA.records.findIndex(r=>r.date===dISO);
   const g=dayGroups(rec);const army=g.base.length+g.returning.length,away=g.home.length+g.leaving.length;
   const evc=evClass(rec.event);
-  const chip=(name)=>{const t=teamOf(name);return`<span class="pchip ${CAT[catOf(rec.people[name])].cls}">${avatar(name,24)}${name}<span class="tt">${t===1?'עיט':'ראם'}</span></span>`;};
+  const chip=(name)=>{const t=teamOf(name);const c=catFor(rec,name);return`<span class="pchip ${CAT[c].cls} ${editMode?'editable':''} ${isEdited(dISO,name)?'edited':''}" ${editMode?`data-edit="${name}"`:''}>${avatar(name,24)}${name}<span class="tt">${t===1?'עיט':'ראם'}</span></span>`;};
   let h=`<div class="mnav">
       <button class="mnav-btn" onclick="stepDay(-1)" aria-label="יום קודם" ${i<=0?'disabled':''}><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
       <div class="mnav-mid">
@@ -743,13 +814,18 @@ function openDay(dISO){
   <div class="msum">
     <div class="box a"><div class="n serif tnum">${army}</div><div class="l">בצבא</div></div>
     <div class="box h"><div class="n serif tnum">${away}</div><div class="l">בבית</div></div>
-  </div>`;
+  </div>
+  ${editMode?`<div class="edit-hint">מצב עריכה — לחצו על אדם כדי לשנות סטטוס. השינוי משותף לכולם ולא נכתב לאקסל.</div>`:''}`;
   // army first: base, returning, leaving
   const sec=(arr,key)=>{if(!arr.length)return'';return`<div class="mgrouplbl"><i style="background:${CAT[key].col}"></i>${CAT[key].label} · ${arr.length}</div><div class="mppl">${arr.map(chip).join('')}</div>`;};
-  h+=sec(g.base,'base')+sec(g.returning,'returning')+sec(g.leaving,'leaving')+sec(g.home,'home');
-  h+=`<div class="rep-actions"><button class="rb prim" onclick="openReport('${dISO}')">
-      <svg viewBox="0 0 24 24"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7"/><path d="M16 6l-4-4-4 4M12 2v13"/></svg>הפק דו״ח 1 לשיתוף</button></div>`;
+  h+=sec(g.base,'base')+sec(g.returning,'returning')+sec(g.leaving,'leaving')+sec(g.home,'home')+(editMode?sec(g.na,'na'):'');
+  h+=`<div class="rep-actions">
+      <button class="rb ${editMode?'on':''}" id="editToggle"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>${editMode?'סיום עריכה':'עריכה'}</button>
+      <button class="rb prim" onclick="openReport('${dISO}')"><svg viewBox="0 0 24 24"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7"/><path d="M16 6l-4-4-4 4M12 2v13"/></svg>דו״ח 1</button></div>`;
   openModal(h);
+  modalRefresh=()=>openDay(dISO);
+  const et=document.getElementById('editToggle');if(et)et.onclick=()=>{editMode=!editMode;openDay(dISO);};
+  if(editMode)modalEl.querySelectorAll('[data-edit]').forEach(el=>el.onclick=()=>openStatusPicker(dISO,el.dataset.edit));
 }
 function stepDay(dir){const i=DATA.records.findIndex(r=>r.date===dayDate)+dir;if(i<0||i>=DATA.records.length)return;openDay(DATA.records[i].date);}
 
@@ -768,8 +844,8 @@ function openPerson(name){
     for(let dd=1;dd<=days;dd++){
       const is=iso(new Date(y,mo,dd)),rec=byIso[is];
       if(!rec){mini+=`<div class="pd void"></div>`;continue;}
-      const cat=catOf(rec.people[name]);
-      mini+=`<div class="pd ${CAT[cat].cls} ${is===isoToday?'today':''}" title="${MONL[mo]} ${dd} · ${CAT[cat].label}">${dd}</div>`;
+      const cat=catFor(rec,name);
+      mini+=`<div class="pd ${CAT[cat].cls} ${is===isoToday?'today':''} ${isEdited(is,name)?'edited':''}" title="${MONL[mo]} ${dd} · ${CAT[cat].label}${isEdited(is,name)?' (נערך)':''}">${dd}</div>`;
     }
     mini+=`</div>`;
   });
@@ -826,16 +902,21 @@ function drawReport(){
       <div class="sc-num h"><div class="v serif tnum">${absent.length}</div><div class="k">בבית</div></div>
     </div>
     <div class="sc-sec"><i style="background:#4F9E67"></i>בצבא · ${present.length}</div>
-    <div class="sc-list">${present.length?present.map(([n,c])=>`<span class="sc-p"><span class="mark" style="background:${CAT[c].col}"></span>${n} <span style="color:#7c7361;font-size:11px">${teamTag(n)}</span></span>`).join(''):'<span class="sc-p" style="opacity:.6">אין</span>'}</div>
+    <div class="sc-list">${present.length?present.map(([n,c])=>`<span class="sc-p ${editMode?'editable':''} ${isEdited(reportDate,n)?'edited':''}" ${editMode?`data-edit="${n}"`:''}><span class="mark" style="background:${CAT[c].col}"></span>${n} <span style="color:#7c7361;font-size:11px">${teamTag(n)}</span></span>`).join(''):'<span class="sc-p" style="opacity:.6">אין</span>'}</div>
     <div class="sc-sec"><i style="background:#D34B47"></i>בבית · ${absent.length}</div>
-    <div class="sc-list">${absent.length?absent.map(n=>`<span class="sc-p"><span class="mark" style="background:#D34B47"></span>${n} <span style="color:#7c7361;font-size:11px">${teamTag(n)}</span></span>`).join(''):'<span class="sc-p" style="opacity:.6">אין</span>'}</div>
+    <div class="sc-list">${absent.length?absent.map(n=>`<span class="sc-p ${editMode?'editable':''} ${isEdited(reportDate,n)?'edited':''}" ${editMode?`data-edit="${n}"`:''}><span class="mark" style="background:#D34B47"></span>${n} <span style="color:#7c7361;font-size:11px">${teamTag(n)}</span></span>`).join(''):'<span class="sc-p" style="opacity:.6">אין</span>'}</div>
     <div class="sc-foot"><span>נוצר ${new Date().toLocaleDateString('he-IL')}</span><span>${team==='1'?'עיט':team==='2'?'ראם':'עיט + ראם'}</span></div>
   </div>`;
-  const actions=`<div class="rep-actions" style="margin-top:14px">
+  const actions=`${editMode?`<div class="edit-hint" style="margin-top:12px">מצב עריכה — לחצו על שם כדי לשנות סטטוס. משותף לכולם, לא נכתב לאקסל.</div>`:''}
+   <div class="rep-actions" style="margin-top:14px">
+     <button class="rb ${editMode?'on':''}" id="editToggle"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>${editMode?'סיום':'עריכה'}</button>
      <button class="rb prim" id="shareImg"><svg viewBox="0 0 24 24"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7"/><path d="M16 6l-4-4-4 4M12 2v13"/></svg>שתף כתמונה</button>
    </div>`;
   openModal(`${nav}${pcard}${actions}`);
+  modalRefresh=()=>drawReport();
   document.getElementById('shareImg').onclick=shareReport;
+  const et=document.getElementById('editToggle');if(et)et.onclick=()=>{editMode=!editMode;drawReport();};
+  if(editMode)modalEl.querySelectorAll('[data-edit]').forEach(el=>el.onclick=()=>openStatusPicker(reportDate,el.dataset.edit));
 }
 function stepReport(dir){
   const i=DATA.records.findIndex(r=>r.date===reportDate)+dir;
@@ -971,6 +1052,11 @@ document.getElementById('jumpToday').onclick=()=>{const t=document.querySelector
 if(DATA){resolveRaam(DATA);recompute();renderAll();}
 else document.getElementById('viewCal').innerHTML='<div class="loading"><div class="spin"></div>טוען נתונים מהגיליון…</div>';
 load();
+/* shared edits: pull once, then poll + on focus */
+function syncOverrides(){fetchOverrides().then(ch=>{if(ch){recompute();renderAll();if(modalRefresh)modalRefresh();}});}
+syncOverrides();
+setInterval(syncOverrides,8000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncOverrides();});
 </script>
 </body>
 </html>

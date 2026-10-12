@@ -112,6 +112,13 @@ header{padding:20px 0 8px}
 /* ============ CALENDAR ============ */
 .cal-month{margin-bottom:26px}
 .cal-mhead{display:flex;align-items:baseline;gap:10px;margin:0 3px 11px}
+.cal-mhead.cal-coll{align-items:center;cursor:pointer;user-select:none;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:0}
+.cal-mhead.cal-coll:active{transform:scale(.995)}
+.cal-arrow{margin-inline-start:auto;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+  border-radius:50%;background:var(--gold);color:var(--bg);font-size:12px;font-weight:900;transition:transform .2s}
+.cal-mhead.cal-coll.open .cal-arrow{transform:rotate(180deg)}
+.cal-body{margin-top:11px}
+.cal-body[hidden]{display:none}
 .cal-mhead .mg{font-family:"Rubik",system-ui,sans-serif;font-weight:900;font-size:21px}
 .cal-mhead .mh{color:var(--gold);font-family:"Rubik",system-ui,sans-serif;font-weight:700;font-size:15px}
 .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px}
@@ -778,7 +785,9 @@ function renderCal(){
     const days=new Date(y,mo+1,0).getDate();const firstDow=new Date(y,mo,1).getDay();
     // hebrew month label (from mid-month)
     const hp=hebParts(new Date(y,mo,15));
-    html+=`<div class="cal-month"><div class="cal-mhead"><span class="mg serif">${MONL[mo]} ${y}</span><span class="mh serif">${hp.mon.replace(/^ב/,'')}</span></div>`;
+    const finished=new Date(y,mo+1,0)<realToday;   // כל החודש כבר עבר → מכווץ
+    html+=`<div class="cal-month"><div class="cal-mhead${finished?' cal-coll':''}"><span class="mg serif">${MONL[mo]} ${y}</span><span class="mh serif">${hp.mon.replace(/^ב/,'')}</span>${finished?'<span class="cal-arrow">▾</span>':''}</div>`;
+    html+=`<div class="cal-body"${finished?' hidden':''}>`;
     html+=`<div class="cal-dow">`+['א','ב','ג','ד','ה','ו','ש'].map(d=>`<div>${d}</div>`).join('')+`</div>`;
     html+=`<div class="cal-grid">`;
     for(let i=0;i<firstDow;i++)html+=`<div class="cell void"></div>`;
@@ -799,13 +808,14 @@ function renderCal(){
         </div>
       </div>`;
     }
-    html+=`</div></div>`;
+    html+=`</div></div></div>`;
   });
   el.innerHTML=html;
   el.querySelectorAll('.cell[data-day]').forEach(c=>{
     c.onclick=()=>openDay(c.dataset.day);
     c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDay(c.dataset.day);}};
   });
+  el.querySelectorAll('.cal-mhead.cal-coll').forEach(h2=>h2.onclick=()=>{h2.classList.toggle('open');const b=h2.nextElementSibling;if(b)b.hidden=!b.hidden;});
 }
 
 /* ---------- HEATMAP (board) ---------- */

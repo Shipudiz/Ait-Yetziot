@@ -663,7 +663,10 @@ function renderAll(){renderToday();renderAlerts();renderInactiveBtn();renderFoot
 /* ---------- סד״כ נמוך: ספירת נוכחים ליום + התראות שבוע קדימה ---------- */
 const LOW_THRESHOLD=8;         // פחות מזה = יום בעייתי
 const ALERT_HORIZON=7;         // כמה ימים קדימה סורקים
-function dayPresent(rec){const g=dayGroups(rec);return{n:g.base.length+g.returning.length,g};}
+/* רוסטר מלא — כל מי שבסבב, שני הצוותים, ללא תלות בחיפוש/פילטר צוות (לספירה הכללית בלבד) */
+function fullRoster(){return DATA.team1.concat(DATA.team2).filter(n=>!INACTIVE.includes(n));}
+function dayPresent(rec){const g={base:[],returning:[],leaving:[],home:[],na:[]};
+  fullRoster().forEach(n=>g[catFor(rec,n)].push(n));return{n:g.base.length+g.returning.length,g};}
 function isLow(rec){return dayPresent(rec).n<LOW_THRESHOLD;}
 function lowWindow(){ // אינדקסים של ימים נמוכים בחלון הקרוב
   const recs=DATA.records;let start=todayIdx>=0?todayIdx:0;const low=[];
@@ -779,7 +782,7 @@ function renderCal(){
       const evc=evClass(rec.event);
       const isToday=is===isoToday;
       const aw=tot?Math.round(army/tot*100):0;
-      let cls='cell';if(date.getDay()===6)cls+=' sat';if(army<LOW_THRESHOLD)cls+=' low';if(isToday)cls+=' today';
+      let cls='cell';if(date.getDay()===6)cls+=' sat';if(isLow(rec))cls+=' low';if(isToday)cls+=' today';
       html+=`<div class="${cls}" data-day="${is}" tabindex="0" role="button" aria-label="${dd} ${MONL[mo]}">
         <div class="top"><span class="g serif tnum">${dd}</span><span class="heb">${hd}</span></div>
         <div class="cbot">

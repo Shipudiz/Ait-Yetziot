@@ -353,11 +353,20 @@ header{padding:20px 0 8px}
 .al-list{display:flex;flex-wrap:wrap;gap:6px}
 .al-p{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600}
 .al-t{font-size:10px;color:var(--muted2);font-weight:700}
-/* collapsible group (בבית בתצוגת יום) */
-.mgrouplbl.collapser{cursor:pointer;user-select:none}
-.coll-arrow{margin-inline-start:auto;transition:transform .15s;color:var(--muted2);font-size:12px}
+/* collapsible group (בבית בתצוגת יום) — נראה כמו כפתור ברור */
+.mgrouplbl.collapser{cursor:pointer;user-select:none;background:var(--panel2);border:1px solid var(--line2);
+  border-radius:12px;padding:11px 13px;margin:16px 0 0}
+.mgrouplbl.collapser:active{transform:scale(.99)}
+.coll-arrow{margin-inline-start:auto;display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;border-radius:50%;background:var(--gold);color:var(--bg);font-size:12px;font-weight:900;transition:transform .2s}
 .mgrouplbl.collapser.open .coll-arrow{transform:rotate(180deg)}
+.coll-body{margin-top:10px}
 .coll-body[hidden]{display:none}  /* גובר על .mppl{display:flex} */
+/* alert pop-up (חד-פעמי) */
+.alert-pop{max-width:480px}
+.alert-pop-h{display:flex;align-items:center;gap:10px;font-family:"Rubik",sans-serif;font-weight:800;font-size:18px;color:#FF8A8A;margin-bottom:12px}
+.alert-pop-h svg{width:27px;height:27px;stroke:#FF6B6B;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.alert-pop-body{max-height:55vh;overflow:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -637,10 +646,10 @@ async function load(){
     const d=buildMain(parseCSV(await r.text()));
     DATA=d;recompute();
     setLive('ok','חי · עודכן '+new Date().toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}));
-    renderAll();
+    renderAll();maybeShowAlertPopup();
   }catch(e){
     console.warn('live fetch failed',e);
-    if(DATA){recompute();setLive('err','לא מקוון · מוצג עותק שמור');renderAll();}
+    if(DATA){recompute();setLive('err','לא מקוון · מוצג עותק שמור');renderAll();maybeShowAlertPopup();}
     else{document.getElementById('viewCal').innerHTML='<div class="loading">שגיאה בטעינת הנתונים.<br>בדוק חיבור לאינטרנט ונסה לרענן.</div>';setLive('err','שגיאה');}
   }
 }
@@ -656,24 +665,23 @@ const LOW_THRESHOLD=8;         // פחות מזה = יום בעייתי
 const ALERT_HORIZON=7;         // כמה ימים קדימה סורקים
 function dayPresent(rec){const g=dayGroups(rec);return{n:g.base.length+g.returning.length,g};}
 function isLow(rec){return dayPresent(rec).n<LOW_THRESHOLD;}
-function renderAlerts(){
-  const el=document.getElementById('alerts');if(!el)return;
-  const recs=DATA.records;
-  let start=todayIdx>=0?todayIdx:0;
-  // אסוף ימים בעייתיים בחלון [היום .. היום+ALERT_HORIZON]
-  const low=[];
+function lowWindow(){ // אינדקסים של ימים נמוכים בחלון הקרוב
+  const recs=DATA.records;let start=todayIdx>=0?todayIdx:0;const low=[];
   for(let i=start;i<=start+ALERT_HORIZON&&i<recs.length;i++){if(isLow(recs[i]))low.push(i);}
-  if(!low.length){el.innerHTML='';return;}
-  // קבץ אינדקסים רצופים לטווחים
+  return low;
+}
+function alertSignature(){return lowWindow().map(i=>DATA.records[i].date).join(',');}
+function alertCardsHTML(){ // בונה את כרטיסי ההתראה (משותף לבאנר ולפופ-אפ)
+  const recs=DATA.records,low=lowWindow();if(!low.length)return'';
   const groups=[];let cur=[low[0]];
   for(let k=1;k<low.length;k++){if(low[k]===low[k-1]+1)cur.push(low[k]);else{groups.push(cur);cur=[low[k]];}}
   groups.push(cur);
-  const nm=(name)=>`<span class="al-p">${name}<span class="al-t">${teamOf(name)===1?'עיט':'ראם'}</span></span>`;
+  const nm=name=>`<span class="al-p">${name}<span class="al-t">${teamOf(name)===1?'עיט':'ראם'}</span></span>`;
   const dstr=i=>{const d=parse(recs[i].date);return`${DOWL[d.getDay()]} ${d.getDate()}.${d.getMonth()+1}`;};
-  let html=`<div class="alerts-wrap">`;
+  let html='';
   groups.forEach(grp=>{
-    const multi=grp.length>1;
-    const head=multi?`ימים ${DOWL[parse(recs[grp[0]].date).getDay()]}–${DOWL[parse(recs[grp[grp.length-1]].date).getDay()]} · ${parse(recs[grp[0]].date).getDate()}.${parse(recs[grp[0]].date).getMonth()+1}–${parse(recs[grp[grp.length-1]].date).getDate()}.${parse(recs[grp[grp.length-1]].date).getMonth()+1}`:dstr(grp[0]);
+    const a=grp[0],b=grp[grp.length-1];
+    const head=grp.length>1?`ימים ${DOWL[parse(recs[a].date).getDay()]}–${DOWL[parse(recs[b].date).getDay()]} · ${parse(recs[a].date).getDate()}.${parse(recs[a].date).getMonth()+1}–${parse(recs[b].date).getDate()}.${parse(recs[b].date).getMonth()+1}`:dstr(a);
     let body='';
     grp.forEach(i=>{const {n,g}=dayPresent(recs[i]);const present=[...g.base,...g.returning];
       body+=`<div class="al-day" data-day="${recs[i].date}">
@@ -685,9 +693,33 @@ function renderAlerts(){
         <div><div class="alert-title">שימו לב · סד״כ נמוך</div><div class="alert-sub">${head}</div></div></div>
       ${body}</div>`;
   });
-  html+=`</div>`;
-  el.innerHTML=html;
+  return html;
+}
+function renderAlerts(){
+  const el=document.getElementById('alerts');if(!el)return;
+  const cards=alertCardsHTML();
+  el.innerHTML=cards?`<div class="alerts-wrap">${cards}</div>`:'';
   el.querySelectorAll('.al-day[data-day]').forEach(d=>d.onclick=()=>openDay(d.dataset.day));
+}
+/* פופ-אפ חד-פעמי למשתמש (קופץ שוב רק אם רשימת הימים הנמוכים השתנתה) */
+let alertPopupDone=false;
+function maybeShowAlertPopup(){
+  if(alertPopupDone)return;
+  const sig=alertSignature();if(!sig){alertPopupDone=true;return;}
+  let seen='';try{seen=localStorage.getItem('yatziot_alert_seen')||'';}catch(e){}
+  if(sig===seen){alertPopupDone=true;return;}
+  alertPopupDone=true;
+  const bg=document.createElement('div');bg.className='pick-bg';
+  bg.innerHTML=`<div class="pick alert-pop">
+    <div class="alert-pop-h"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9l-8 14A2 2 0 004 21h16a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg><span>התראת סד״כ נמוך</span></div>
+    <div class="alert-pop-body">${alertCardsHTML()}</div>
+    <button class="pick-cancel" id="alertPopClose">הבנתי, סגור</button>
+  </div>`;
+  document.body.appendChild(bg);
+  const close=()=>{bg.remove();try{localStorage.setItem('yatziot_alert_seen',sig);}catch(e){}};
+  bg.onclick=e=>{if(e.target===bg)close();};
+  bg.querySelector('#alertPopClose').onclick=close;
+  bg.querySelectorAll('.al-day[data-day]').forEach(d=>d.onclick=()=>{close();openDay(d.dataset.day);});
 }
 
 function renderToday(){

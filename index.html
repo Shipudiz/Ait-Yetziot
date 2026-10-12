@@ -431,6 +431,16 @@ const DB_URL="https://ait-reem-yetziot-default-rtdb.europe-west1.firebasedatabas
 let OVERRIDES={};        // { `${date}~${name}`: {cat, at} }
 let editMode=false;
 let modalRefresh=null;   // מרענן את המודל הפתוח אחרי שינוי
+/* קוד עריכה — רק מי שיודע אותו יכול לערוך (נשמר במכשיר אחרי הזנה נכונה) */
+const EDIT_CODE="7024";
+let editUnlocked=false;try{editUnlocked=localStorage.getItem('yatziot_edit_ok')==='1';}catch(e){}
+function tryEnableEdit(){
+  if(editUnlocked){editMode=true;return true;}
+  const c=prompt('קוד עריכה:');
+  if(c===null)return false;
+  if(c.trim()===EDIT_CODE){editUnlocked=true;try{localStorage.setItem('yatziot_edit_ok','1');}catch(e){}editMode=true;return true;}
+  alert('קוד שגוי');return false;
+}
 function ovKey(date,name){return date+'~'+name;}
 function catFor(rec,name){const o=OVERRIDES[ovKey(rec.date,name)];return (o&&o.cat)?o.cat:catOf(rec.people[name]);}
 function isEdited(date,name){return !!OVERRIDES[ovKey(date,name)];}
@@ -791,7 +801,7 @@ function openDay(dISO){
       <button class="rb prim" onclick="openReport('${dISO}')"><svg viewBox="0 0 24 24"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7"/><path d="M16 6l-4-4-4 4M12 2v13"/></svg>דו״ח 1</button></div>`;
   openModal(h);
   modalRefresh=()=>openDay(dISO);
-  const et=document.getElementById('editToggle');if(et)et.onclick=()=>{editMode=!editMode;openDay(dISO);};
+  const et=document.getElementById('editToggle');if(et)et.onclick=()=>{if(editMode){editMode=false;}else if(!tryEnableEdit())return;openDay(dISO);};
   if(editMode)modalEl.querySelectorAll('[data-edit]').forEach(el=>el.onclick=()=>openStatusPicker(dISO,el.dataset.edit));
 }
 function stepDay(dir){const i=DATA.records.findIndex(r=>r.date===dayDate)+dir;if(i<0||i>=DATA.records.length)return;openDay(DATA.records[i].date);}
@@ -882,7 +892,7 @@ function drawReport(){
   openModal(`${nav}${pcard}${actions}`);
   modalRefresh=()=>drawReport();
   document.getElementById('shareImg').onclick=shareReport;
-  const et=document.getElementById('editToggle');if(et)et.onclick=()=>{editMode=!editMode;drawReport();};
+  const et=document.getElementById('editToggle');if(et)et.onclick=()=>{if(editMode){editMode=false;}else if(!tryEnableEdit())return;drawReport();};
   if(editMode)modalEl.querySelectorAll('[data-edit]').forEach(el=>el.onclick=()=>openStatusPicker(reportDate,el.dataset.edit));
 }
 function stepReport(dir){

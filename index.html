@@ -744,7 +744,6 @@ function renderCal(){
       const aw=tot?Math.round(army/tot*100):0;
       let cls='cell';if(date.getDay()===6)cls+=' sat';if(army<LOW_THRESHOLD)cls+=' low';if(isToday)cls+=' today';
       html+=`<div class="${cls}" data-day="${is}" tabindex="0" role="button" aria-label="${dd} ${MONL[mo]}">
-        ${dayHasEdits(is)?'<span class="ovdot" title="יש עריכה ידנית"></span>':''}
         <div class="top"><span class="g serif tnum">${dd}</span><span class="heb">${hd}</span></div>
         <div class="cbot">
           ${rec.event?`<div class="ev ${evc}">${evShort(rec.event)}</div>`:''}

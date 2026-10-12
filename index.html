@@ -353,6 +353,11 @@ header{padding:20px 0 8px}
 .al-list{display:flex;flex-wrap:wrap;gap:6px}
 .al-p{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600}
 .al-t{font-size:10px;color:var(--muted2);font-weight:700}
+/* collapsible group (בבית בתצוגת יום) */
+.mgrouplbl.collapser{cursor:pointer;user-select:none}
+.coll-arrow{margin-inline-start:auto;transition:transform .15s;color:var(--muted2);font-size:12px}
+.mgrouplbl.collapser.open .coll-arrow{transform:rotate(180deg)}
+.coll-body[hidden]{display:none}  /* גובר על .mppl{display:flex} */
 </style>
 </head>
 <body>
@@ -850,9 +855,11 @@ function openDay(dISO){
     <div class="box h"><div class="n serif tnum">${away}</div><div class="l">בבית</div></div>
   </div>
   ${editMode?`<div class="edit-hint">מצב עריכה — לחצו על אדם כדי לשנות סטטוס. השינוי משותף לכולם ולא נכתב לאקסל.</div>`:''}`;
-  // army first: base, returning, leaving
-  const sec=(arr,key)=>{if(!arr.length)return'';return`<div class="mgrouplbl"><i style="background:${CAT[key].col}"></i>${CAT[key].label} · ${arr.length}</div><div class="mppl">${arr.map(chip).join('')}</div>`;};
-  h+=sec(g.base,'base')+sec(g.returning,'returning')+sec(g.leaving,'leaving')+sec(g.home,'home')+(editMode?sec(g.na,'na'):'');
+  // army first: base, returning, leaving. "בבית" מכווץ כברירת מחדל.
+  const sec=(arr,key,collapse)=>{if(!arr.length)return'';
+    if(collapse)return`<div class="mgrouplbl collapser"><i style="background:${CAT[key].col}"></i>${CAT[key].label} · ${arr.length}<span class="coll-arrow">▾</span></div><div class="mppl coll-body" hidden>${arr.map(chip).join('')}</div>`;
+    return`<div class="mgrouplbl"><i style="background:${CAT[key].col}"></i>${CAT[key].label} · ${arr.length}</div><div class="mppl">${arr.map(chip).join('')}</div>`;};
+  h+=sec(g.base,'base')+sec(g.returning,'returning')+sec(g.leaving,'leaving')+sec(g.home,'home',true)+(editMode?sec(g.na,'na'):'');
   h+=`<div class="rep-actions">
       <button class="rb ${editMode?'on':''}" id="editToggle"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>${editMode?'סיום עריכה':'עריכה'}</button>
       <button class="rb prim" onclick="openReport('${dISO}')"><svg viewBox="0 0 24 24"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7"/><path d="M16 6l-4-4-4 4M12 2v13"/></svg>דו״ח 1</button></div>`;
@@ -860,6 +867,7 @@ function openDay(dISO){
   modalRefresh=()=>openDay(dISO);
   const et=document.getElementById('editToggle');if(et)et.onclick=()=>{if(editMode){editMode=false;}else if(!tryEnableEdit())return;openDay(dISO);};
   if(editMode)modalEl.querySelectorAll('[data-edit]').forEach(el=>el.onclick=()=>openStatusPicker(dISO,el.dataset.edit));
+  modalEl.querySelectorAll('.collapser').forEach(h2=>h2.onclick=()=>{h2.classList.toggle('open');const b=h2.nextElementSibling;if(b)b.hidden=!b.hidden;});
 }
 function stepDay(dir){const i=DATA.records.findIndex(r=>r.date===dayDate)+dir;if(i<0||i>=DATA.records.length)return;openDay(DATA.records[i].date);}
 

@@ -148,7 +148,17 @@ header{padding:20px 0 8px}
 .cell.picked{border-color:var(--ink)}
 
 /* ============ HEATMAP (board) ============ */
-.board-bar{display:flex;align-items:center;gap:11px;margin:0 2px 11px}
+.board-bar{display:flex;align-items:center;gap:9px;margin:0 2px 11px;flex-wrap:wrap}
+.pill-sel{background:var(--panel2);color:var(--ink);border:1px solid var(--line2);font-weight:700;font-size:13.5px;padding:9px 16px;border-radius:11px;cursor:pointer}
+.pill-sel.on{background:linear-gradient(180deg,#3a3016,#2a2312);border-color:var(--gold-d);color:var(--gold)}
+.pill-sel:active{transform:scale(.96)}
+.pill-clear{background:transparent;color:var(--muted);border:1px dashed var(--line2);font-weight:600;font-size:12.5px;padding:8px 13px;border-radius:11px;cursor:pointer}
+.n-name.picking{cursor:pointer}
+.n-name.picking .n-check{width:22px;height:22px;flex:0 0 auto;border-radius:6px;border:1.5px solid var(--line2);background:var(--panel);
+  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:var(--gold)}
+.n-name.selected{background:rgba(235,194,106,.1)}
+.n-name.selected .n-check{border-color:var(--gold);background:var(--gold);color:var(--bg)}
+.n-name.selected .nm{color:var(--gold);font-weight:800}
 .pill-today{background:var(--gold);color:var(--bg);border:0;font-weight:800;font-size:13.5px;padding:9px 18px;border-radius:11px;cursor:pointer;
   font-family:"Rubik",sans-serif;box-shadow:0 4px 14px rgba(235,194,106,.22)}
 .pill-today:active{transform:scale(.96)}
@@ -429,7 +439,7 @@ header{padding:20px 0 8px}
 
   <div id="viewCal"></div>
   <div id="viewBoard" class="hidden">
-  <div class="board-bar"><button id="jumpToday" class="pill-today">היום</button><span class="board-hint">גלול לצדדים לאורך הסבב</span></div>
+  <div class="board-bar" id="boardBar"></div>
   <div class="board"><div class="hm">
     <div class="hm-names" id="hmNames"></div>
     <div class="hm-scroll" id="hmScroll"><div class="hm-grid" id="hmGrid"></div></div>
@@ -565,6 +575,8 @@ function evShort(ev){return expandEv(ev).replace(/\s*\(.*?\)\s*/g,' ').trim();} 
 
 /* ---------- state ---------- */
 let view='cal',team='all',query='',showInactive=false;
+let boardSelect=false;            // מצב בחירת אנשים בלוח
+let boardSelected=new Set();      // השמות שנבחרו
 let INACTIVE=[],todayIdx=-1;
 const realToday=new Date();realToday.setHours(0,0,0,0);
 const isoToday=iso(realToday);
@@ -820,7 +832,17 @@ function renderCal(){
 
 /* ---------- HEATMAP (board) ---------- */
 function renderBoard(){
-  const scope=roster(),recs=DATA.records;
+  const recs=DATA.records;
+  // סקופ: כשיש נבחרים ולא במצב בחירה — מציגים רק אותם
+  let scope=roster();
+  const filtering=!boardSelect&&boardSelected.size>0;
+  if(filtering)scope=scope.filter(p=>boardSelected.has(p.name));
+  // סרגל הלוח
+  const bar=document.getElementById('boardBar');
+  bar.innerHTML=`<button id="jumpToday" class="pill-today">היום</button>
+    <button id="selectToggle" class="pill-sel ${boardSelect?'on':''}">${boardSelect?'✓ סיום בחירה':'בחירת אנשים'}</button>
+    ${boardSelected.size?`<button id="clearSel" class="pill-clear">נבחרו ${boardSelected.size} · נקה ✕</button>`:''}
+    <span class="board-hint">${boardSelect?'לחצו על שמות לבחירה':(filtering?'מציג נבחרים בלבד':'גלול לצדדים')}</span>`;
   let nh='<div class="n-corner"></div>';
   let gh='<div class="hm-hrow">'+recs.map((r,i)=>{const d=parse(r.date);const cls=['dh'];
     if(r.date===isoToday)cls.push('today');if(d.getDay()===6)cls.push('sat');if(r.event)cls.push('event');
@@ -832,7 +854,8 @@ function renderBoard(){
     nh+=`<div class="n-sep">${label}</div>`;
     gh+=`<div class="hm-sep" style="width:${recs.length*28}px"></div>`;
     members.forEach(p=>{
-      nh+=`<div class="n-name" data-name="${p.name}">${avatar(p.name,22)}<span class="nm">${p.name}</span></div>`;
+      const sel=boardSelected.has(p.name);
+      nh+=`<div class="n-name ${boardSelect?'picking':''} ${sel?'selected':''}" data-name="${p.name}">${boardSelect?`<span class="n-check">${sel?'✓':''}</span>`:avatar(p.name,22)}<span class="nm">${p.name}</span></div>`;
       gh+='<div class="hm-row">'+recs.map(r=>{const c=catFor(r,p.name);
         return`<div class="c c-${c} ${r.date===isoToday?'today':''}" data-day="${r.date}" title="${p.name}"></div>`;}).join('')+'</div>';
     });
@@ -841,10 +864,16 @@ function renderBoard(){
   block(t1,'עיט');block(t2,'ראם');
   document.getElementById('hmNames').innerHTML=nh;
   document.getElementById('hmGrid').innerHTML=gh;
-  document.querySelectorAll('.n-name').forEach(n=>n.onclick=()=>openPerson(n.dataset.name));
+  // bindings
+  document.getElementById('jumpToday').onclick=()=>{const t=document.querySelector('.dh.today');if(t)t.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'});};
+  document.getElementById('selectToggle').onclick=()=>{boardSelect=!boardSelect;renderBoard();};
+  const cs=document.getElementById('clearSel');if(cs)cs.onclick=()=>{boardSelected.clear();boardSelect=false;renderBoard();};
+  document.querySelectorAll('.n-name').forEach(n=>n.onclick=()=>{
+    if(boardSelect){const nm=n.dataset.name;boardSelected.has(nm)?boardSelected.delete(nm):boardSelected.add(nm);renderBoard();}
+    else openPerson(n.dataset.name);
+  });
   document.querySelectorAll('.dh').forEach(h=>h.onclick=()=>openDay(recs[+h.dataset.idx].date));
   document.querySelectorAll('.hm-grid .c').forEach(c=>c.onclick=()=>openDay(c.dataset.day));
-  // scroll today into view
   const t=document.querySelector('.dh.today');if(t)t.scrollIntoView({inline:'center',block:'nearest'});
 }
 
@@ -1141,7 +1170,6 @@ document.querySelectorAll('#teamSeg button').forEach(b=>b.onclick=()=>{
 document.getElementById('search').oninput=e=>{query=e.target.value;renderAll();};
 document.getElementById('inactiveBtn').onclick=()=>{showInactive=!showInactive;renderAll();};
 document.getElementById('reportBtn').onclick=()=>openReport(isoToday);
-document.getElementById('jumpToday').onclick=()=>{const t=document.querySelector('.dh.today');if(t)t.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'});};
 
 /* ---------- boot ---------- */
 if(DATA){recompute();renderAll();}

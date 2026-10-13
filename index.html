@@ -486,6 +486,11 @@ const ARMY=new Set(['base','leaving','returning']); // "נמצא" = בצבא (na
 
 /* ============ עריכה משותפת — שכבת שינויים ידניים מעל האקסל (Firebase RTDB) ============ */
 const DB_URL="https://ait-reem-yetziot-default-rtdb.europe-west1.firebasedatabase.app";
+/* ===== ראם — נתוני נוכחות מגיליון נפרד (פרטי) דרך Firebase =====
+   הגיליון של ראם נשאר חסום. סקריפט בחשבון המשתמש קורא אותו ודוחף ל-/reem את
+   הסטטוסים הגולמיים (נוכח / לא נוכח / יוצא / ?). כאן גוזרים מהם קטגוריות. */
+const REEM_URL=DB_URL+"/reem.json";
+let REEM=null;   // { updated, roster:[...], days:{ 'YYYY-MM-DD': { name: raw } } }
 let OVERRIDES={};        // { `${date}~${name}`: {cat, at} }
 let editMode=false;
 let modalRefresh=null;   // מרענן את המודל הפתוח אחרי שינוי
@@ -658,6 +663,38 @@ function buildMain(rows){
   if(!records.length)throw new Error('no rows');
   return{team1:t1.map(o=>o.name),team2:t2.map(o=>o.name),records};
 }
+/* ----- ראם: משיכה מ-Firebase + גזירת קטגוריות מהרצף הכרונולוגי ----- */
+async function fetchReem(){
+  try{const r=await fetch(REEM_URL,{cache:'no-store'});if(!r.ok)return false;
+    const j=await r.json();
+    if(JSON.stringify(j)!==JSON.stringify(REEM)){REEM=j;return true;}return false;
+  }catch(e){console.warn('reem fetch',e);return false;}
+}
+/* מחליף את ראם (team2) בנתונים מהגיליון הנפרד, וגוזר base/returning/leaving/home.
+   כלל המעברים: היום שהופכים בו ל"נוכח" אחרי שלא היית = חוזר; היום שהופכים בו
+   ל"יוצא" ישר אחרי "נוכח" = יוצא הביתה; כל השאר בצבא או בבית. */
+function applyReem(){
+  if(!REEM||!REEM.roster||!REEM.days)return;
+  const roster=REEM.roster.filter(Boolean);
+  (DATA.team2||[]).forEach(n=>DATA.records.forEach(r=>{delete r.people[n];}));
+  DATA.team2=roster.slice();
+  roster.forEach(name=>{
+    let prev=null;
+    DATA.records.forEach(rec=>{
+      const dm=REEM.days[rec.date]||{};
+      const raw=(dm[name]==null?'':(''+dm[name])).trim();
+      let cat;
+      if(raw==='נוכח')              cat=(prev!==null&&prev!=='נוכח')?'returning':'base';
+      else if(raw==='יוצא')         cat=(prev==='נוכח')?'leaving':'home';
+      else if(raw.indexOf('לא')===0) cat='home';   // לא נוכח
+      else if(raw==='?')            cat='home';
+      else if(raw==='')             cat='na';
+      else                          cat='home';     // זמין / לא מוכר
+      rec.people[name]=cat;
+      if(raw!=='')prev=raw;
+    });
+  });
+}
 const EXCLUDE=new Set(['אברהם קלנר']);   // לא חלק מהכוח — מתעלמים לגמרי (למרות שבאקסל)
 function recompute(){
   DATA.team1=DATA.team1.filter(n=>!EXCLUDE.has(n));
@@ -674,12 +711,12 @@ async function load(){
     const r=await fetch(CSV_URL,{cache:'no-store'});
     if(!r.ok)throw new Error('main '+r.status);
     const d=buildMain(parseCSV(await r.text()));
-    DATA=d;recompute();
+    DATA=d;await fetchReem();applyReem();recompute();
     setLive('ok','חי · עודכן '+new Date().toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}));
     renderAll();maybeShowAlertPopup();
   }catch(e){
     console.warn('live fetch failed',e);
-    if(DATA){recompute();setLive('err','לא מקוון · מוצג עותק שמור');renderAll();maybeShowAlertPopup();}
+    if(DATA){applyReem();recompute();setLive('err','לא מקוון · מוצג עותק שמור');renderAll();maybeShowAlertPopup();}
     else{document.getElementById('viewCal').innerHTML='<div class="loading">שגיאה בטעינת הנתונים.<br>בדוק חיבור לאינטרנט ונסה לרענן.</div>';setLive('err','שגיאה');}
   }
 }
@@ -1179,7 +1216,7 @@ if(DATA){recompute();renderAll();}
 else document.getElementById('viewCal').innerHTML='<div class="loading"><div class="spin"></div>טוען נתונים מהגיליון…</div>';
 load();
 /* shared edits: pull once, then poll + on focus */
-function syncOverrides(){fetchOverrides().then(ch=>{if(ch){recompute();renderAll();if(modalRefresh)modalRefresh();}});}
+function syncOverrides(){Promise.all([fetchOverrides(),fetchReem()]).then(([a,b])=>{if(a||b){applyReem();recompute();renderAll();if(modalRefresh)modalRefresh();}});}
 syncOverrides();
 setInterval(syncOverrides,8000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncOverrides();});

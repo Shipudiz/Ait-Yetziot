@@ -658,7 +658,10 @@ function buildMain(rows){
   if(!records.length)throw new Error('no rows');
   return{team1:t1.map(o=>o.name),team2:t2.map(o=>o.name),records};
 }
+const EXCLUDE=new Set(['אברהם קלנר']);   // לא חלק מהכוח — מתעלמים לגמרי (למרות שבאקסל)
 function recompute(){
+  DATA.team1=DATA.team1.filter(n=>!EXCLUDE.has(n));
+  DATA.team2=DATA.team2.filter(n=>!EXCLUDE.has(n));
   INACTIVE=DATA.team1.concat(DATA.team2).filter(n=>counts(n).armyAny===0);
   todayIdx=DATA.records.findIndex(r=>r.date===isoToday);
 }

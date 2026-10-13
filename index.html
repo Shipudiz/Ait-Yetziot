@@ -695,7 +695,7 @@ function applyReem(){
     });
   });
 }
-const EXCLUDE=new Set(['אברהם קלנר']);   // לא חלק מהכוח — מתעלמים לגמרי (למרות שבאקסל)
+const EXCLUDE=new Set(['אברהם קלנר','יאיר ללוש']);   // לא חלק מהכוח / שורה מוסתרת בגיליון — מתעלמים לגמרי
 function recompute(){
   DATA.team1=DATA.team1.filter(n=>!EXCLUDE.has(n));
   DATA.team2=DATA.team2.filter(n=>!EXCLUDE.has(n));

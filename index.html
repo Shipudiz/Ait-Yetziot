@@ -369,12 +369,15 @@ header{padding:20px 0 8px}
 .alert-top svg{width:26px;height:26px;stroke:#FF6B6B;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
 .alert-title{font-family:"Rubik",sans-serif;font-weight:800;font-size:15.5px;color:#FF8A8A}
 .alert-sub{font-size:13px;color:var(--muted);font-weight:600;margin-top:1px}
-.al-day{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,91,91,.18);cursor:pointer}
-.al-day:active{opacity:.7}
-.al-day-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
-.al-day-h>span:first-child{font-weight:700;font-size:14px}
-.al-n{font-family:"Rubik",sans-serif;font-weight:800;font-size:13.5px;color:#FF6B6B}
-.al-list{display:flex;flex-wrap:wrap;gap:6px}
+.al-day{margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,91,91,.18)}
+.al-day-h{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;padding:3px 0;cursor:pointer;color:inherit;font:inherit;text-align:inherit}
+.al-day-h:active{opacity:.6}
+.al-chev{width:15px;height:15px;stroke:#FF6B6B;fill:none;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto;transition:transform .18s}
+.al-day.open .al-chev{transform:rotate(180deg)}
+.al-d{font-weight:700;font-size:14px;flex:1 1 auto}
+.al-n{font-family:"Rubik",sans-serif;font-weight:800;font-size:13.5px;color:#FF6B6B;flex:0 0 auto}
+.al-list{display:flex;flex-wrap:wrap;gap:6px;margin:3px 0 5px;padding-right:23px}
+.al-list[hidden]{display:none}
 .al-p{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600}
 .al-t{font-size:10px;color:var(--muted2);font-weight:700}
 /* collapsible group (בבית בתצוגת יום) — נראה כמו כפתור ברור */
@@ -762,8 +765,10 @@ function alertCardsHTML(){ // בונה את כרטיסי ההתראה (משות�
     let body='';
     grp.forEach(i=>{const {n,g}=dayPresent(recs[i]);const present=[...g.base,...g.returning];
       body+=`<div class="al-day" data-day="${recs[i].date}">
-        <div class="al-day-h"><span>${dstr(i)}</span><span class="al-n">${n} בצבא</span></div>
-        <div class="al-list">${present.length?present.map(nm).join(''):'<span class="al-p" style="opacity:.6">אין נוכחים</span>'}</div>
+        <button class="al-day-h" type="button" aria-expanded="false">
+          <svg class="al-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+          <span class="al-d">${dstr(i)}</span><span class="al-n">${n} בצבא</span></button>
+        <div class="al-list" hidden>${present.length?present.map(nm).join(''):'<span class="al-p" style="opacity:.6">אין נוכחים</span>'}</div>
       </div>`;});
     html+=`<div class="alert-card">
       <div class="alert-top"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9l-8 14A2 2 0 004 21h16a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
@@ -772,11 +777,20 @@ function alertCardsHTML(){ // בונה את כרטיסי ההתראה (משות�
   });
   return html;
 }
+/* חיווט כרטיסי התראה: לחיצה על הכותרת פותחת/סוגרת את רשימת האנשים;
+   לחיצה על הרשימה פותחת את תצוגת היום המלאה. */
+function wireAlertCards(root,onOpen){
+  root.querySelectorAll('.al-day').forEach(day=>{
+    const h=day.querySelector('.al-day-h'),list=day.querySelector('.al-list');
+    if(h)h.onclick=()=>{const show=list.hasAttribute('hidden');list.toggleAttribute('hidden',!show);h.setAttribute('aria-expanded',show?'true':'false');day.classList.toggle('open',show);};
+    if(list)list.onclick=()=>{if(onOpen)onOpen(day.dataset.day);};
+  });
+}
 function renderAlerts(){
   const el=document.getElementById('alerts');if(!el)return;
   const cards=alertCardsHTML();
   el.innerHTML=cards?`<div class="alerts-wrap">${cards}</div>`:'';
-  el.querySelectorAll('.al-day[data-day]').forEach(d=>d.onclick=()=>openDay(d.dataset.day));
+  wireAlertCards(el,d=>openDay(d));
 }
 /* פופ-אפ חד-פעמי למשתמש (קופץ שוב רק אם רשימת הימים הנמוכים השתנתה) */
 let alertPopupDone=false;
@@ -796,7 +810,7 @@ function maybeShowAlertPopup(){
   const close=()=>{bg.remove();try{localStorage.setItem('yatziot_alert_seen',sig);}catch(e){}};
   bg.onclick=e=>{if(e.target===bg)close();};
   bg.querySelector('#alertPopClose').onclick=close;
-  bg.querySelectorAll('.al-day[data-day]').forEach(d=>d.onclick=()=>{close();openDay(d.dataset.day);});
+  wireAlertCards(bg,d=>{close();openDay(d);});
 }
 
 function renderToday(){

@@ -294,6 +294,7 @@ header{padding:20px 0 8px}
 .rep-seg button.on{background:linear-gradient(180deg,#3a3016,#2a2312);border-color:var(--gold-d);color:var(--gold)}
 .rep-text{white-space:pre-wrap;word-break:break-word;direction:rtl;text-align:right;font-family:"Rubik",system-ui,sans-serif;font-size:15.5px;line-height:1.75;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 14px;max-height:48vh;overflow:auto}
 .rb.ok{border-color:#4F9E67;color:#7fd79a}
+.sc-sumline{font-family:"Rubik",system-ui,sans-serif;font-weight:900;font-size:16px;color:#EBC26A;border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:11px;margin-bottom:15px}
 .rep-actions{display:flex;gap:9px;margin-top:6px}
 .rep-actions .rb{flex:1;padding:12px;border-radius:13px;border:1px solid var(--line2);background:var(--panel2);color:var(--ink);
   font-weight:800;font-size:14.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
@@ -1128,7 +1129,18 @@ function drawReport(){
      <button data-f="2" class="${reportForce===2?'on':''}">ראם</button>
    </div>`;
   const txt=reportText(reportForce);
-  const body=`<pre class="rep-text" id="repText">${esc(txt)}</pre>
+  const g=reportGroups(recByIso(reportDate),reportForce);
+  const total=g.base.length+g.home.length+g.leaving.length+g.returning.length;
+  const chips=(arr,col)=>arr.length?arr.map(n=>`<span class="sc-p"><span class="mark" style="background:${col}"></span>${n}</span>`).join(''):'<span class="sc-p" style="opacity:.5">—</span>';
+  const sec=(label,col,arr,always)=>(arr.length||always)?`<div class="sc-sec"><i style="background:${col}"></i>${label} · ${arr.length}</div><div class="sc-list">${chips(arr,col)}</div>`:'';
+  const card=`<div class="sharecard" dir="rtl">
+      <div class="sc-sumline">סה״כ · ${total}</div>
+      ${sec('עזה','var(--army)',g.base,true)}
+      ${sec('רענון','var(--home)',g.home,true)}
+      ${sec('יוצא לרענון','var(--leaving)',g.leaving,false)}
+      ${sec('חוזר מהבית','var(--returning)',g.returning,false)}
+    </div>`;
+  const body=`${card}
     <div class="rep-actions">
       <button class="rb prim" id="repCopy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg>העתק טקסט</button>
       ${navigator.share?`<button class="rb" id="repShare"><svg viewBox="0 0 24 24"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7"/><path d="M16 6l-4-4-4 4M12 2v13"/></svg>שלח</button>`:''}

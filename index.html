@@ -336,6 +336,17 @@ header{padding:20px 0 8px}
 .inactive-bar button:hover{color:var(--muted);border-color:var(--muted2)}
 .footer{text-align:center;color:var(--muted2);font-size:12px;margin-top:26px;line-height:1.7}
 .hidden{display:none!important}
+/* ---------- שער קוד כניסה ---------- */
+.gate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(130% 90% at 50% 0%,#1c231a 0%,var(--bg2) 62%)}
+.gate-card{width:100%;max-width:340px;text-align:center;background:var(--panel);border:1px solid var(--line2);border-radius:20px;padding:32px 24px 26px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.gate-mark{width:44px;height:44px;margin:0 auto 14px;display:block;color:var(--gold)}
+.gate-title{font-family:"Rubik",system-ui,sans-serif;font-weight:900;font-size:21px;color:var(--ink);margin-bottom:5px}
+.gate-sub{color:var(--muted);font-size:14px;margin-bottom:20px}
+.gate-input{width:100%;box-sizing:border-box;padding:14px 16px;border-radius:13px;border:1px solid var(--line2);background:var(--bg);color:var(--ink);font-size:17px;font-family:inherit;text-align:center;margin-bottom:12px}
+.gate-input:focus{outline:none;border-color:var(--gold)}
+.gate-btn{width:100%;padding:14px;border-radius:13px;border:1px solid var(--gold-d);cursor:pointer;background:linear-gradient(180deg,#3a3016,#2a2312);color:var(--gold);font-weight:800;font-size:16px;font-family:"Rubik",system-ui,sans-serif}
+.gate-btn:active{transform:scale(.98)}
+.gate-err{color:var(--home);font-size:14px;font-weight:700;margin-top:12px;min-height:18px}
 :focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:4px}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}
   .live.ok .lp{animation:none}}
@@ -410,6 +421,16 @@ header{padding:20px 0 8px}
 </style>
 </head>
 <body>
+<div id="gate" class="gate">
+  <div class="gate-card">
+    <svg class="gate-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+    <div class="gate-title">טבלת יציאות · עיט־ראם</div>
+    <div class="gate-sub">הזן קוד כניסה</div>
+    <input id="gateInput" class="gate-input" type="password" inputmode="text" autocomplete="off" autocapitalize="off" placeholder="קוד">
+    <button id="gateBtn" class="gate-btn">כניסה</button>
+    <div id="gateErr" class="gate-err"></div>
+  </div>
+</div>
 <div class="wrap">
   <header>
     <div class="hgrid">
@@ -1191,15 +1212,50 @@ document.getElementById('search').oninput=e=>{query=e.target.value;renderAll();}
 document.getElementById('inactiveBtn').onclick=()=>{showInactive=!showInactive;renderAll();};
 document.getElementById('reportBtn').onclick=()=>openReport(isoToday);
 
-/* ---------- boot ---------- */
-if(DATA){recompute();renderAll();}
-else document.getElementById('viewCal').innerHTML='<div class="loading"><div class="spin"></div>טוען נתונים מהגיליון…</div>';
-load();
-/* shared edits: pull once, then poll + on focus */
+/* ---------- קוד כניסה (שער) + boot ---------- */
+const GATE_HASH='3c10612a944a0f55ae7a299d3fcc6438e3f5c2a980bdd3909b373946c70449dc';   // SHA-256 של הקוד — המילה עצמה לא בקוד
 function syncOverrides(){Promise.all([fetchOverrides(),fetchReem()]).then(([a,b])=>{if(a||b){applyReem();recompute();renderAll();if(modalRefresh)modalRefresh();}});}
-syncOverrides();
-setInterval(syncOverrides,8000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncOverrides();});
+let booted=false;
+function boot(){
+  if(booted)return;booted=true;
+  if(DATA){recompute();renderAll();}
+  else document.getElementById('viewCal').innerHTML='<div class="loading"><div class="spin"></div>טוען נתונים מהגיליון…</div>';
+  load();
+  syncOverrides();
+  setInterval(syncOverrides,8000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncOverrides();});
+}
+/* SHA-256 עצמאי (בלי תלות ב-crypto.subtle) — עובד בכל סביבה, שלא ינעל אף אחד בחוץ */
+function sha256hex(str){
+  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  const H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const rotr=(x,n)=>(x>>>n)|(x<<(32-n));
+  const bytes=[]; for(const ch of unescape(encodeURIComponent(str))) bytes.push(ch.charCodeAt(0));
+  const bl=bytes.length*8; bytes.push(0x80);
+  while(bytes.length%64!==56) bytes.push(0);
+  for(let i=7;i>=0;i--) bytes.push((Math.floor(bl/Math.pow(2,8*i)))&0xff);
+  for(let i=0;i<bytes.length;i+=64){
+    const w=new Array(64);
+    for(let t=0;t<16;t++) w[t]=((bytes[i+4*t]<<24)|(bytes[i+4*t+1]<<16)|(bytes[i+4*t+2]<<8)|bytes[i+4*t+3])|0;
+    for(let t=16;t<64;t++){const s0=rotr(w[t-15],7)^rotr(w[t-15],18)^(w[t-15]>>>3);const s1=rotr(w[t-2],17)^rotr(w[t-2],19)^(w[t-2]>>>10);w[t]=(w[t-16]+s0+w[t-7]+s1)|0;}
+    let a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(let t=0;t<64;t++){const S1=rotr(e,6)^rotr(e,11)^rotr(e,25);const chh=(e&f)^((~e)&g);const t1=(h+S1+chh+K[t]+w[t])|0;const S0=rotr(a,2)^rotr(a,13)^rotr(a,22);const maj=(a&b)^(a&c)^(b&c);const t2=(S0+maj)|0;h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t2)|0;}
+    H[0]=(H[0]+a)|0;H[1]=(H[1]+b)|0;H[2]=(H[2]+c)|0;H[3]=(H[3]+d)|0;H[4]=(H[4]+e)|0;H[5]=(H[5]+f)|0;H[6]=(H[6]+g)|0;H[7]=(H[7]+h)|0;
+  }
+  return H.map(x=>(x>>>0).toString(16).padStart(8,'0')).join('');
+}
+function openApp(){const g=document.getElementById('gate');if(g)g.remove();boot();}
+(function(){
+  let ok=false;try{ok=localStorage.getItem('yatziot_gate_ok')==='1';}catch(e){}
+  if(ok){openApp();return;}
+  const inp=document.getElementById('gateInput'),btn=document.getElementById('gateBtn'),err=document.getElementById('gateErr');
+  const go=()=>{const v=(inp.value||'').trim();if(!v)return;
+    if(sha256hex(v)===GATE_HASH){try{localStorage.setItem('yatziot_gate_ok','1');}catch(e){}err.textContent='';openApp();}
+    else{err.textContent='קוד שגוי';inp.value='';inp.focus();}};
+  btn.onclick=go;
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')go();});
+  setTimeout(()=>{try{inp.focus();}catch(e){}},50);
+})();
 </script>
 </body>
 </html>
